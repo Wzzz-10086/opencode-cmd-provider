@@ -2,6 +2,7 @@
 import { createRequire } from "node:module"
 import { readFileSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { run, assert, assertEqual } from "./harness.js"
 
 const require = createRequire(import.meta.url)
@@ -105,7 +106,7 @@ run([
       // drops auto-registration and /connect. Only `import type` (erased by tsc/bun)
       // may reference these packages.
       const offenders: string[] = []
-      for (const file of listJsFiles(new URL("../dist", import.meta.url).pathname)) {
+      for (const file of listJsFiles(fileURLToPath(new URL("../dist", import.meta.url)))) {
         const text = readFileSync(file, "utf-8")
         if (/^\s*import\s.*from\s+["']@opencode-ai\//m.test(text)) {
           offenders.push(file)

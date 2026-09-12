@@ -11,11 +11,12 @@
 // `@opentui/*` / `solid-js` imports to its own module instances at plugin load
 // time, so they are marked external.
 import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
+import { fileURLToPath } from "node:url"
 
 const out = await Bun.build({
-  entrypoints: [new URL("../src/deals/tui.tsx", import.meta.url).pathname],
+  entrypoints: [fileURLToPath(new URL("../src/deals/tui.tsx", import.meta.url))],
   target: "bun",
-  outdir: new URL("../dist", import.meta.url).pathname,
+  outdir: fileURLToPath(new URL("../dist", import.meta.url)),
   naming: "tui.js",
   plugins: [
     createSolidTransformPlugin({
