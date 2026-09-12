@@ -360,4 +360,53 @@ run([
       assertEqual(cu1.cost.total, cu2.cost.total)
     },
   ],
+  [
+    "OpenAI: prompt_tokens_details.cached_tokens feeds cacheRead (issue #147)",
+    () => {
+      // Live-captured Provider API usage: an identical repeat request reports
+      // the prefix-cache hit OpenAI-style in the nested details object.
+      const usage = openAIUsageToAiSdkUsage({
+        prompt_tokens: 18103,
+        completion_tokens: 10,
+        total_tokens: 18113,
+        prompt_tokens_details: { cached_tokens: 17920 },
+      } as any)
+      assertEqual(usage?.inputTokens.total, 18103)
+      assertEqual(usage?.inputTokens.cacheRead, 17920)
+      assertEqual(usage?.inputTokens.noCache, 183)
+      // Cost attribution: the hit must bill at the cache-read rate, not fresh input.
+      const cu = costUsageFromAiSdkUsage(usage!)
+      calculateCommandCodeCost(
+        { cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 } },
+        cu,
+      )
+      assertEqual(cu.cacheRead, 17920)
+      assertEqual(cu.input, 183)
+      const freshCost = (0.15 / 1_000_000) * 17920
+      assert(cu.cost.total < freshCost, "cached hit must be cheaper than fresh input")
+    },
+  ],
+  [
+    "OpenAI: DeepSeek-native prompt_cache_hit_tokens feeds cacheRead",
+    () => {
+      const usage = openAIUsageToAiSdkUsage({
+        prompt_tokens: 1000,
+        completion_tokens: 10,
+        prompt_cache_hit_tokens: 750,
+      } as any)
+      assertEqual(usage?.inputTokens.cacheRead, 750)
+      assertEqual(usage?.inputTokens.noCache, 250)
+    },
+  ],
+  [
+    "OpenAI: explicit cache_read_input_tokens wins over nested cached_tokens",
+    () => {
+      const usage = openAIUsageToAiSdkUsage({
+        prompt_tokens: 100,
+        cache_read_input_tokens: 60,
+        prompt_tokens_details: { cached_tokens: 40 },
+      } as any)
+      assertEqual(usage?.inputTokens.cacheRead, 60)
+    },
+  ],
 ])

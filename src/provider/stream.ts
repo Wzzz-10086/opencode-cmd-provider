@@ -154,6 +154,7 @@ function extractUsageTokens(
   const rec = asRecord(usage)
   if (!rec) return undefined
   // OpenAI: prompt_tokens / completion_tokens / total_tokens
+  //   (cache hit: prompt_tokens_details.cached_tokens; DeepSeek-native: prompt_cache_hit_tokens)
   // Anthropic: input_tokens / output_tokens / cache_read_input_tokens / cache_creation_input_tokens
   // Generic: inputTokens / outputTokens / input_tokens etc.
   const input =
@@ -168,10 +169,13 @@ function extractUsageTokens(
     numberValue(rec.outputTokens) ??
     numberValue(rec.completionTokens) ??
     0
+  const details = asRecord(rec.prompt_tokens_details)
   const cacheRead =
     numberValue(rec.cache_read_input_tokens) ??
     numberValue(rec.cacheReadTokens) ??
     numberValue((rec as Record<string, unknown>).cacheRead) ??
+    numberValue(details?.cached_tokens) ??
+    numberValue(rec.prompt_cache_hit_tokens) ??
     0
   const cacheWrite =
     numberValue(rec.cache_creation_input_tokens) ??

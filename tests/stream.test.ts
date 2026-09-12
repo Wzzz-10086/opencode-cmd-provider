@@ -368,6 +368,50 @@ run([
   ],
 
   [
+    "createOpenAIStreamParser reports cache reads from prompt_tokens_details.cached_tokens (issue #147)",
+    () => {
+      // Live-captured Provider API trailer chunk (deepseek/deepseek-v4.1-flash):
+      // a repeat request against a stable prefix reports the cache hit in the
+      // OpenAI nested details object. Before #147 the parser dropped it and
+      // opencode rendered cache.read as 0.
+      const parser = createOpenAIStreamParser()
+      const chunks = [
+        { id: "gen_1", choices: [{ delta: { content: "ok" }, finish_reason: null }] },
+        {
+          id: "gen_1",
+          choices: [{ delta: {}, finish_reason: "stop" }],
+          usage: {
+            prompt_tokens: 18103,
+            completion_tokens: 10,
+            total_tokens: 18113,
+            prompt_tokens_details: { cached_tokens: 17920, audio_tokens: 0, video_tokens: 0 },
+            completion_tokens_details: { reasoning_tokens: 10, image_tokens: 0 },
+            cache_creation_input_tokens: 0,
+          },
+        },
+      ]
+      const parts = chunks.flatMap((c) => parser(c))
+      const finish = parts.find((p) => p.type === "finish") as {
+        usage?: {
+          inputTokens?: {
+            total?: number
+            noCache?: number
+            cacheRead?: number
+            cacheWrite?: number
+          }
+        }
+      }
+      assert(finish, "finish present")
+      assertEqual(finish.usage?.inputTokens, {
+        total: 18103,
+        noCache: 183,
+        cacheRead: 17920,
+        cacheWrite: 0,
+      })
+    },
+  ],
+
+  [
     "createAnthropicStreamParser handles thinking block lifecycle",
     () => {
       const parser = createAnthropicStreamParser()
