@@ -73,7 +73,7 @@ run([
       const mod = await loadTui()
       const def = mod.default as { id?: unknown; tui?: unknown }
       assert(typeof def === "object" && def !== null)
-      assertEqual(def.id, "commandcode.deals")
+      assertEqual(def.id, "opencode-cmd-provider")
       assert(typeof def.tui === "function")
     },
   ],

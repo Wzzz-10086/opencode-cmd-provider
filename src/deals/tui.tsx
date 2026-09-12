@@ -88,7 +88,7 @@ export function dealsRows(
   return rows
 }
 
-const id = "commandcode.deals"
+const id = "opencode-cmd-provider"
 
 type ModelRef = { id: string; providerID: string; variant?: string }
 
