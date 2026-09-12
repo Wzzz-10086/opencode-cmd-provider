@@ -113,7 +113,8 @@ serves for `rsc: 1` requests (see ADR-0005). It surfaces in two places:
 - **Sidebar** — in a session, the OpenCode sidebar (`ctrl+x b`) shows a
   `Command Code` section for the selected model: tier, GOAT/Pro allowance,
   benchmark (intelligence, tok/s), deal discounts (`was`/`now` rates), and
-  peak/off-peak windows.
+  peak/off-peak windows. For time-varying models the picker's base cost is
+  the peak rate (see [Pricing display](#pricing-display)).
 - **`cmd_plan_summary` tool** — plan-aware allowances and deal rates, to
   estimate monthly requests.
 
@@ -238,6 +239,8 @@ For vision-capable models, image blocks from user messages and tool results are 
 ## Pricing display
 
 The Command Code Provider API does not currently include prices in its model catalog. This provider generates a table from the bundled `models.md` catalog so OpenCode can display estimated request costs.
+
+Time-varying models (the DeepSeek V4 family, whose rates change between peak and off-peak windows) are shipped **peak-first**: the picker's base cost is the peak rate, so the displayed estimate is the conservative (higher) one. The full peak/off-peak windows are surfaced in the sidebar and `cmd_plan_summary` output. A cost you declare yourself in `opencode.json` is never overwritten.
 
 Models missing from that table display zero cost in OpenCode. This does **not** mean Command Code will bill the request at zero. Check the current [Command Code pricing](https://commandcode.ai/docs/resources/pricing-limits) before relying on the displayed value.
 

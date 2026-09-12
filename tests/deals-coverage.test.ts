@@ -11,6 +11,7 @@ import { MODEL_SNAPSHOT } from "../src/catalog/snapshot.js"
 import { MODEL_COSTS } from "../src/catalog/facts.js"
 import { MODEL_DEALS } from "../src/deals/catalog.js"
 import { enrichCommandCodeModels } from "../src/deals/enrichment.js"
+import { autoRegister } from "../src/plugin/models.js"
 import { isFreeModelCost } from "../src/provider/pricing.js"
 import { extractPlanPageRsc } from "../scripts/parse-rsc.mjs"
 import { assert, assertEqual, run } from "./harness.js"
@@ -112,6 +113,50 @@ run([
       assertEqual(cmd.free, false)
       assertEqual(cmd.allowance, { goat: 20, pro: 30 })
       assert(cmd.peakOffPeak, "vision must have peakOffPeak")
+    },
+  ],
+
+  [
+    "catalog-wide: every time-varying model ships peak rates after enrichment",
+    () => {
+      // Regression for the vision-exp drift bug: the peak-first rewrite must
+      // apply to EVERY deals entry carrying peakOffPeak, regardless of
+      // whether models.md and the RSC off-peak rates agree. Derived from the
+      // generated catalogs — no pinned ids (pricing-lint gate).
+      const config: Record<string, unknown> = {}
+      autoRegister(config as never, MODEL_SNAPSHOT, {
+        npm: "opencode-cmd-provider",
+        name: "Command Code",
+        baseURL: "https://example.invalid",
+      })
+      enrichCommandCodeModels(config as never)
+      const models = (
+        config as unknown as {
+          provider: { commandcode: { models: Record<string, Record<string, unknown>> } }
+        }
+      ).provider.commandcode.models
+      const timeVarying = Object.entries(MODEL_DEALS).filter(([, deal]) => deal.peakOffPeak)
+      assert(timeVarying.length > 0, "the deals catalog must carry time-varying models")
+      for (const [id, deal] of timeVarying) {
+        const cost = models[id]?.cost as
+          { input?: number; output?: number; cache_read?: number; cache_write?: number } | undefined
+        assert(cost, `${id}: enriched model must carry a cost`)
+        assertEqual(
+          {
+            input: cost.input,
+            output: cost.output,
+            cache_read: cost.cache_read,
+            cache_write: cost.cache_write,
+          },
+          {
+            input: deal.peakOffPeak!.peak.input,
+            output: deal.peakOffPeak!.peak.output,
+            cache_read: deal.peakOffPeak!.peak.cacheRead,
+            cache_write: deal.peakOffPeak!.peak.cacheWrite,
+          },
+          `${id}: time-varying models must ship the peak rates`,
+        )
+      }
     },
   ],
 ])

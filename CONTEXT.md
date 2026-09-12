@@ -45,7 +45,10 @@ with the snapshot.
 _Avoid_: pricing table, deal feed
 
 **Deals intelligence**:
-The deals catalog plus its enrichment (`model.options.cmd`, `context_over_200k` cost) and its surfaces: the TUI sidebar panel and the `cmd_plan_summary` tool. A single excisable slice — removing it leaves core byte-identical.
+The deals catalog plus its enrichment (`model.options.cmd`, `context_over_200k` cost,
+and the peak-first base rates for time-varying models) and its surfaces: the TUI
+sidebar panel and the `cmd_plan_summary` tool. A single excisable slice — removing
+it leaves core byte-identical.
 _Avoid_: deals feature, pricing UI
 
 **Classification**:

@@ -189,11 +189,13 @@ export function parseModelsPage(html) {
     // a name-cell button whose aria-label says the shown rate is the
     // off-peak rate. The footnote's presence is the marker — the actual
     // peak/off-peak fields live in the RSC records, so this emits a
-    // verify-against-RSC note (no second band parser, issue #129).
+    // verify-against-RSC note (no second band parser, issue #129). The
+    // Snapshot ships the peak rates for these models (peak-first enrichment,
+    // see src/deals/enrichment.ts), so the note must not claim otherwise.
     const offPeakNote = nameCell.match(/aria-label="(Off-peak[^"]+)"/)?.[1]
     if (offPeakNote) {
       notes.push(
-        `models-page: ${name} — ${offPeakNote}; the shipped base rate is the off-peak rate, verify against RSC peak/off-peak fields`,
+        `models-page: ${name} — ${offPeakNote}; the page shows the off-peak rate, verify against RSC peak/off-peak fields`,
       )
     }
     rows.push({

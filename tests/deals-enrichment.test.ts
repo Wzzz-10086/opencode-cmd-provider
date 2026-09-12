@@ -1,6 +1,7 @@
 // tests/deals-enrichment.test.ts — enrichment + degradation contract
 import { enrichCommandCodeModels, buildCmdOptions } from "../src/deals/enrichment.js"
 import type { ModelDeals } from "../src/deals/catalog.js"
+import type { CatalogModel } from "../src/catalog/snapshot.js"
 import { assertEqual, run } from "./harness.js"
 
 const DEALS: Readonly<Record<string, ModelDeals>> = {
@@ -24,7 +25,50 @@ const DEALS: Readonly<Record<string, ModelDeals>> = {
     tier: "premium",
     free: false,
   },
+  // Synthetic time-varying models: `test-aligned` mirrors the common case
+  // (the models.md base rate equals the RSC off-peak rate); `test-drifted`
+  // mirrors the vision-exp shape (the two sources disagree).
+  "deepseek/test-aligned": {
+    peakOffPeak: {
+      peak: { input: 1.32, output: 3.96, cacheRead: 0.044, cacheWrite: 0 },
+      offPeak: { input: 0.66, output: 1.98, cacheRead: 0.022, cacheWrite: 0 },
+      windows: "01-04 & 06-10 UTC",
+    },
+    free: false,
+  },
+  "deepseek/test-drifted": {
+    peakOffPeak: {
+      peak: { input: 0.44, output: 1.32, cacheRead: 0.014, cacheWrite: 0 },
+      offPeak: { input: 0.22, output: 0.66, cacheRead: 0.007, cacheWrite: 0 },
+      windows: "01-04 & 06-10 UTC",
+    },
+    free: false,
+  },
 }
+
+const SNAPSHOT_ROWS: readonly CatalogModel[] = [
+  {
+    id: "deepseek/test-aligned",
+    name: "Aligned",
+    contextLength: 1000000,
+    contextSource: "models.md",
+    efforts: null,
+    // The models.md value happens to equal the RSC off-peak rate.
+    cost: { input: 0.66, output: 1.98, cacheRead: 0.022, cacheWrite: 0 },
+    costSource: "models.md",
+  },
+  {
+    id: "deepseek/test-drifted",
+    name: "Drifted",
+    contextLength: 1000000,
+    contextSource: "models.md",
+    efforts: null,
+    // models.md disagrees with the RSC off-peak (0.22/0.66/0.007), exactly
+    // like the live deepseek/deepseek-v4-flash-vision-exp row.
+    cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
+    costSource: "models.md",
+  },
+]
 
 run([
   [
@@ -80,6 +124,8 @@ run([
           free: false,
         },
       })
+      // No config cost → no base-rate rewrite; only the over-context tier is
+      // gap-filled (peak-first rewrites require the Snapshot's own cost).
       assertEqual(gemini.cost, {
         context_over_200k: { input: 0.3, output: 1.2, cache_read: 0.06, cache_write: 0 },
       })
@@ -235,6 +281,122 @@ run([
       assertEqual(buildCmdOptions({ free: true, discount: { pct: 100 } }), {
         free: true,
         discount: { pct: 100 },
+      })
+    },
+  ],
+
+  [
+    "upgrades the auto-registered Snapshot cost to peak rates (aligned shape)",
+    () => {
+      const config = {
+        provider: {
+          commandcode: {
+            models: {
+              "deepseek/test-aligned": {
+                name: "Aligned",
+                cost: { input: 0.66, output: 1.98, cache_read: 0.022, cache_write: 0 },
+              },
+            },
+          },
+        },
+      } as const
+      enrichCommandCodeModels(config as never, DEALS, SNAPSHOT_ROWS)
+      const model = (
+        config as never as {
+          provider: { commandcode: { models: Record<string, Record<string, unknown>> } }
+        }
+      ).provider.commandcode.models["deepseek/test-aligned"]
+      assertEqual(model.cost, {
+        input: 1.32,
+        output: 3.96,
+        cache_read: 0.044,
+        cache_write: 0,
+      })
+    },
+  ],
+
+  [
+    "upgrades the Snapshot cost even when models.md disagrees with the RSC off-peak (drifted shape)",
+    () => {
+      // Regression for the vision-exp bug: the old off-peak heuristic skipped
+      // any row whose models.md base rate differed from the RSC off-peak rate.
+      const config = {
+        provider: {
+          commandcode: {
+            models: {
+              "deepseek/test-drifted": {
+                name: "Drifted",
+                cost: { input: 0.15, output: 0.6, cache_read: 0.003, cache_write: 0 },
+              },
+            },
+          },
+        },
+      } as const
+      enrichCommandCodeModels(config as never, DEALS, SNAPSHOT_ROWS)
+      const model = (
+        config as never as {
+          provider: { commandcode: { models: Record<string, Record<string, unknown>> } }
+        }
+      ).provider.commandcode.models["deepseek/test-drifted"]
+      assertEqual(model.cost, {
+        input: 0.44,
+        output: 1.32,
+        cache_read: 0.014,
+        cache_write: 0,
+      })
+    },
+  ],
+
+  [
+    "leaves an unset cost unset for a time-varying model (missing never fills)",
+    () => {
+      // A model with no cost must not gain one from the Deals catalog: the
+      // "missing never zero-fills" contract applies to prices too.
+      const config = {
+        provider: {
+          commandcode: {
+            models: {
+              "deepseek/test-aligned": { name: "Aligned" },
+            },
+          },
+        },
+      } as const
+      enrichCommandCodeModels(config as never, DEALS, SNAPSHOT_ROWS)
+      const model = (
+        config as never as {
+          provider: { commandcode: { models: Record<string, Record<string, unknown>> } }
+        }
+      ).provider.commandcode.models["deepseek/test-aligned"]
+      assertEqual(model.cost, undefined)
+    },
+  ],
+
+  [
+    "preserves user-declared custom cost for models with peakOffPeak",
+    () => {
+      const config = {
+        provider: {
+          commandcode: {
+            models: {
+              "deepseek/test-aligned": {
+                name: "Aligned",
+                cost: { input: 99, output: 99, cache_read: 9, cache_write: 9 },
+              },
+            },
+          },
+        },
+      } as const
+      enrichCommandCodeModels(config as never, DEALS, SNAPSHOT_ROWS)
+      const model = (
+        config as never as {
+          provider: { commandcode: { models: Record<string, Record<string, unknown>> } }
+        }
+      ).provider.commandcode.models["deepseek/test-aligned"]
+      assertEqual(model.cost, {
+        input: 99,
+        output: 99,
+        cache_read: 9,
+        cache_write: 9,
       })
     },
   ],

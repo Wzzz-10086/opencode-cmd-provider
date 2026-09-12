@@ -191,7 +191,7 @@ export function renderPlanSummary(
       const allowance = d.allowance?.[plan]
       const estimate =
         allowance && d.free === false
-          ? estimateMonthlyRequests(id, allowance).toLocaleString("en-US")
+          ? estimateMonthlyRequests(id, allowance, deals).toLocaleString("en-US")
           : "—"
       lines.push(
         `| \`${safeId}\` | ${allowance !== undefined ? `$${allowance}` : "free"} | ${estimate} | ${dealText} |`,
@@ -212,8 +212,13 @@ export function renderPlanSummary(
   return lines.join("\n")
 }
 
-function estimateMonthlyRequests(modelId: string, allowance: number): number {
-  const cost = MODEL_COSTS[modelId]
+function estimateMonthlyRequests(
+  modelId: string,
+  allowance: number,
+  deals: Readonly<Record<string, ModelDeals>> = MODEL_DEALS,
+): number {
+  const deal = deals[modelId]
+  const cost = deal?.peakOffPeak?.peak ?? MODEL_COSTS[modelId]
   // No cost row bundled (e.g. not yet in the snapshot): the allowance is the
   // best estimate we have, so report it directly as a placeholder.
   if (!cost) return Math.round(allowance)

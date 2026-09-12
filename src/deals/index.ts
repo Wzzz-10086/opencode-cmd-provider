@@ -20,7 +20,8 @@ export type { ModelDeals, PlanId, PlanInfo, DealRates } from "./catalog.js"
 // into src/plugin)
 export { vendorFamilyForModel } from "./vendor.js"
 
-// Enrichment (family + options.cmd + context_over_200k cost)
+// Enrichment (family + options.cmd + context_over_200k cost + peak-first
+// base rates for time-varying models)
 export { enrichCommandCodeModels, buildCmdOptions } from "./enrichment.js"
 
 // Tool

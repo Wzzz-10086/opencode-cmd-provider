@@ -41,8 +41,6 @@ import {
   commandCodeErrorMessage,
   isUpgradeRequiredError,
 } from "./redact.js"
-import { calculateCommandCodeCost, costUsageFromAiSdkUsage } from "./cost.js"
-import { ZERO_MODEL_COST, MODEL_COSTS } from "./pricing.js"
 import {
   mappedReasoningEffort,
   resolveProviderReasoning,
@@ -157,10 +155,6 @@ export class CommandCodeLanguageModel implements LanguageModelV3 {
 
   private apiBase(): string {
     return this.options.baseURL ?? getApiBase()
-  }
-
-  private costForModel(): { cost: (typeof MODEL_COSTS)[string] } {
-    return { cost: MODEL_COSTS[this.modelId] ?? ZERO_MODEL_COST }
   }
 
   /**
@@ -761,11 +755,11 @@ export class CommandCodeLanguageModel implements LanguageModelV3 {
             if (heldFinish) {
               // The finish part is emitted after the body is fully drained so
               // the terminal usage chunk (OpenAI: separate usage-only chunk;
-              // Anthropic: message_delta) is incorporated.
-              calculateCommandCodeCost(
-                this.costForModel(),
-                costUsageFromAiSdkUsage(heldFinish.usage),
-              )
+              // Anthropic: message_delta) is incorporated. Cost display is
+              // OpenCode's job: it bills from the config `model.cost` entry,
+              // which the plugin's enrichment ships peak-first for
+              // time-varying models. The v3 usage shape carries no cost
+              // field, so no local computation happens here.
               emit(heldFinish)
             } else if (!finished) {
               // The server closed the stream without a finish event; the AI SDK
